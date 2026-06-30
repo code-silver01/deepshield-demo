@@ -1,32 +1,208 @@
-# React + TypeScript + Vite
+<h1 align="center"><img src="client/public/logo2.png" height="40" style="vertical-align: middle;" /> DeepShield</h1>
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+<p align="center">
+  <strong>AI-Powered Security Event Detection, Analysis & Response Platform</strong>
+</p>
 
-Currently, two official plugins are available:
+<p align="center">
+  <a href="#architecture">Architecture</a> •
+  <a href="#features">Features</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#getting-started">Getting Started</a> •
+  <a href="#project-structure">Project Structure</a> •
+  <a href="#license">License</a>
+</p>
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## Overview
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Deepshield** is an end-to-end security monitoring platform that ingests real-time alerts from open-source security tools — [Falco](https://falco.org/), [Suricata](https://suricata.io/), [Wazuh](https://wazuh.com/), and [Zeek](https://zeek.org/) — and uses AI agents to perform automated threat analysis, generate PDF reports, and write context-aware detection rules.
 
-## Expanding the Oxlint configuration
+It is designed for teams and individuals who want to reduce alert fatigue, auto-triage security events, and maintain high-signal detection rules across their infrastructure.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## Architecture
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          Host / Infrastructure                           │
+│                                                                          │
+│           ┌───────────┐   ┌───────────┐                                  │
+│           │   Falco   │   │ Suricata  │                                  │
+│           └─────┬─────┘   └─────┬─────┘                                  │
+│                 │               │                                        │
+│                 └───────────────┘                                        │
+│                         ▼                                                │
+│                 ┌───────────────┐                                        │
+│                 │    Daemon     │  Go binary — receives alerts,          │
+│                 │  (Agent API)  │  exposes tool APIs for AI agents       │
+│                 └───────┬───────┘                                        │
+│                         │ HTTP                                           │
+└─────────────────────────┼────────────────────────────────────────────────┘
+                          │
+                          ▼
+                ┌─────────────────┐     ┌──────────────┐
+                │     Server      │────▶│  PostgreSQL  │
+                │  (Express API)  │     └──────────────┘
+                │                 │     ┌──────────────┐
+                │  AI Agents:     │────▶│    Redis     │
+                │  • Threat       │     └──────────────┘
+                │    Analysis     │     ┌──────────────┐
+                │  • Rule Writer  │────▶│  PDF reports │
+                │  • Threat       │     └──────────────┘
+                │    Summarizer   │     
+                └────────┬────────┘
+                         │
+                         ▼
+                ┌─────────────────┐
+                │     Client      │
+                │   (Next.js)     │
+                │   Dashboard     │
+                └─────────────────┘
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Features
+
+- **Real-Time Alert Ingestion** — The daemon captures live alerts from Falco (with Suricata, Wazuh, and Zeek support planned) and forwards them to the server via HTTP.
+- **AI Threat Analysis** — An AI Agents-powered SOC analyst triages each event, producing a structured verdict with confidence scores, evidence breakdown, and response recommendations.
+- **PDF Report Generation** — Analysis results are rendered into professional PDF reports and stored in AWS S3 with pre-signed URL access.
+- **AI Rule Writer** — An agentic workflow reads your threat summary, consults tool-specific rule-writing guides, and writes/validates/deploys custom detection rules directly on the host.
+- **Project Summariser** — An AI agent scans your codebase to produce a security-focused summary that powers context-aware rule writing and reduces false positives(Yet to be Added).
+- **Interactive TUI Installer** — A Charm-powered terminal UI for selecting and installing security tools (Falco, Suricata) on the host with a single command.
+- **Event Dashboard** — A Next.js web interface for browsing, filtering, and analysing security events with date-range filters, priority badges, and one-click threat analysis.
+- **Deduplication** — Repeated alerts of the same type are automatically deduplicated and counted rather than creating noise.
+- **Redis-Backed Agent Memory** — AI agent sessions are persisted in Redis for contextual continuity across analysis runs.
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Client** | Next.js 16, React 19, Tailwind CSS 4, Radix UI, PrismJS |
+| **Server** | Express 5, TypeScript, Prisma ORM (PostgreSQL), PDFKit |
+| **AI** | Ollama (Cloud Models) |
+| **Daemon** | Go, Charm Bubbletea (TUI), net/http |
+| **Infrastructure** | PostgreSQL 17, Redis 8.4, AWS S3, Docker Compose |
+
+## Getting Started
+
+### Prerequisites
+
+- **Node.js** ≥ 20 and **pnpm** ≥ 10
+- **Go** ≥ 1.22
+- **Docker** and **Docker Compose**
+- **Ollama** (for Cloud model inference) — [Install Ollama](https://ollama.com/download)
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/code-silver01/deepshield-demo.git
+cd deepshield-demo
+```
+
+
+
+### 2. Set Up the Server
+
+```bash
+cd server
+cp .env.example .env          # edit .env with your credentials
+pnpm install
+npx prisma migrate deploy     # apply database migrations
+pnpm dev                      # starts on port 3000
+```
+
+**Environment Variables** (`.env`):
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `PORT` | Server port (default: `3000`) |
+| `DAEMON_BASE_URL` | Daemon API endpoint (default: `http://localhost:4000`) |
+| `AWS_REGION` | AWS region for S3 |
+| `AWS_S3_BUCKET` | S3 bucket name for threat reports |
+| `REPORT_URL_TTL_SECONDS` | Pre-signed URL expiry (default: `600`) |
+| `DEBUG_AI` | Enable AI debug logging (`1` to enable) |
+
+### 4. Set Up the Client
+
+```bash
+cd client
+npm install
+npm run dev                      # starts on port 3001
+```
+
+### 5. Build and Run the Daemon
+
+```bash
+cd daemon
+make build                    # builds to ./bin/watchdog
+```
+
+**Initialize security tools (interactive TUI):**
+
+```bash
+export DEEPSHIELD_BACKEND_URL="http://localhost:3000"
+sudo --preserve-env=DEEPSHIELD_BACKEND_URL ./bin/watchdog init
+```
+
+**Run the daemon:**
+
+```bash
+./bin/watchdog
+```
+
+The daemon exposes:
+- **Port 8080** — Agent API (file read/write/edit, rule validation, service restart)
+- **Port 8081** — Falco, Suricata HTTP alert receiver
+
+### 6. Pull the AI Model
+
+```bash
+ollama pull minimax-m2.5:cloud
+```
+
+
+## API Reference
+
+### Event Routes (`/events`)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/events/new` | Create or deduplicate an event (used by daemon) |
+| `GET` | `/events/all` | List events with date range/sort/pagination filters |
+| `GET` | `/events/:uuid` | Get event by ID |
+| `GET` | `/events/analyse/:uuid` | Trigger AI threat analysis for an event |
+| `GET` | `/events/status/:uuid` | Poll analysis completion status |
+
+### Generate Routes (`/generate`)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/generate/rules?toolname=falco` | Generate detection rules for a tool |
+| `POST` | `/generate/summary` | Generate project security summary |
+
+### Daemon Agent API (`:8080`)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/tools/read?path=` | Read a file from the host |
+| `POST` | `/tools/write` | Write content to a file on the host |
+| `POST` | `/tools/edit` | Replace content in a file on the host |
+| `GET` | `/tools/validate?toolname=` | Validate rule syntax for a tool |
+| `GET` | `/tools/restart?toolname=` | Restart a security tool service |
+| `GET` | `/tools/direnum?path=&level=` | Enumerate directory structure |
+
+## AI Agents
+
+### Threat Analysis Agent
+Receives a security event and produces a structured incident report with verdict (Genuine / False Positive / Inconclusive), confidence score, key evidence, response recommendations, and safe tuning suggestions. Reports are rendered to PDF and stored in S3.
+
+### Rule Writer Agent
+Reads the project summary and tool-specific rule-writing guides, then writes detection rules, validates their syntax via the daemon, and restarts the security tool — all autonomously through tool-use.
+
+### Project Summariser Agent
+Enumerates and reads your codebase through the daemon's file API to produce a security-focused project summary. This summary powers context-aware rule writing and helps the threat analysis agent distinguish expected behavior from genuine threats.
+
+## License
+
+This project is open-source. See the repository for license details.
